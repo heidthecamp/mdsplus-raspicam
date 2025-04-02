@@ -41,6 +41,12 @@ class RASPICAM_PI5_GS(MDSplus.Device):
             'options': ('no_write_shot',),
         },
         {
+            'path': ':SEG_MODE',
+            'type': 'text',
+            'value': 'timestamped',
+            'options': ('no_write_shot',),
+        },
+        {
             'path': ':FRAMES',
             'type': 'signal',
             'options': ('no_write_model',),
@@ -103,12 +109,15 @@ class RASPICAM_PI5_GS(MDSplus.Device):
 
                 event_name = str(self.device.SEG_EVENT.data())
 
+                seg_mode = str(self.device.SEG_MODE.data())
+
                 fps = float(self.device.FPS.data())
                 delta_time = 1.0 / fps
 
                 segment_length = self.device.SEG_LENGTH.data()
 
-                self.device.TIMESTAMPS.record = MDSplus.DIM_OF(self.device.FRAMES)
+                if seg_mode.lower() == 'timestamped':
+                    self.device.TIMESTAMPS.record = MDSplus.DIM_OF(self.device.FRAMES)
 
                 frames = []
                 timestamps = []
@@ -126,14 +135,16 @@ class RASPICAM_PI5_GS(MDSplus.Device):
 
                     if len(frames) >= segment_length or buffer is None:
 
-                        begin = segment_index * segment_length * delta_time
-                        end = begin + ((len(frames) - 1) * delta_time)
-                        dim = MDSplus.Range(begin, end, delta_time)
+                        if seg_mode.lower() == 'timestamped':
+                            self.device.FRAMES.makeTimestampedSegment(numpy.array(timestamps), numpy.array(frames))
 
-                        self.device.FRAMES.makeTimestampedSegment(numpy.array(timestamps), numpy.array(frames))
-
-                        # self.device.FRAMES.makeSegment(begin, end, dim, numpy.array(frames))
-                        # self.device.TIMESTAMPS.makeSegment(begin, end, dim, numpy.array(timestamps))
+                        else:
+                            begin = segment_index * segment_length * delta_time
+                            end = begin + ((len(frames) - 1) * delta_time)
+                            dim = MDSplus.Range(begin, end, delta_time)
+                            
+                            self.device.FRAMES.makeSegment(begin, end, dim, numpy.array(frames))
+                            self.device.TIMESTAMPS.makeSegment(begin, end, dim, numpy.array(timestamps))
 
                         frames = []
                         timestamps = []
